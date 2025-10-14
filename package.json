@@ -6,6 +6,7 @@
   },
   "dependencies": {
     "color-thief-browser": "^2.0.2",
+    "express": "^5.1.0",
     "socket.io": "^4.8.1"
   }
 }
