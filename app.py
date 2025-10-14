@@ -30,9 +30,9 @@ def get_spotify_client(code):
         scope=SCOPE,
     )
     token_info = oauth.get_access_token(code, as_dict=True)
-    if not token_info or 'access_token' not in token_info:
+    if not token_info or "access_token" not in token_info:
         return None
-    return spotipy.Spotify(auth=token_info['access_token'])
+    return spotipy.Spotify(auth=token_info["access_token"])
 
 
 @app.route("/listening")
@@ -56,16 +56,18 @@ def listening():
     duration = datetime.utcfromtimestamp(duration_ms / 1000).strftime("%M:%S")
     track_id = item["id"]
 
-    return jsonify({
-        "is_playing": True,
-        "track_name": track_name,
-        "artists": artists,
-        "album_name": album_name,
-        "album_image_url": album_image_url,
-        "progress": progress,
-        "duration": duration,
-        "track_id": track_id,
-    })
+    return jsonify(
+        {
+            "is_playing": True,
+            "track_name": track_name,
+            "artists": artists,
+            "album_name": album_name,
+            "album_image_url": album_image_url,
+            "progress": progress,
+            "duration": duration,
+            "track_id": track_id,
+        }
+    )
 
 
 if __name__ == "__main__":
