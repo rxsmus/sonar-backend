@@ -20,30 +20,9 @@ REDIRECT_URI = (
 )
 
 
-def get_spotify_client():
-    token_info = session.get("token_info")
-    if not token_info:
-        return None
-    # Refresh token if needed
-    oauth = SpotifyOAuth(
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        redirect_uri=REDIRECT_URI,
-        scope=SCOPE,
-    )
-    if oauth.is_token_expired(token_info):
-        token_info = oauth.refresh_access_token(token_info["refresh_token"])
-        session["token_info"] = token_info
-    return spotipy.Spotify(auth=token_info["access_token"])
-
-
-
-# Spotify OAuth callback: exchange code for tokens and store in session
-@app.route("/callback")
-def callback():
-    code = request.args.get("code")
+def get_spotify_client(code):
     if not code:
-        return "Missing code", 400
+        return None
     oauth = SpotifyOAuth(
         client_id=CLIENT_ID,
         client_secret=CLIENT_SECRET,
@@ -52,21 +31,20 @@ def callback():
     )
     token_info = oauth.get_access_token(code, as_dict=True)
     if not token_info or "access_token" not in token_info:
-        return "Failed to get token", 400
-    session["token_info"] = token_info
-    # Redirect to frontend (remove code from URL)
-    frontend_url = "https://spotcord-frontend.vercel.app/"
-    return redirect(frontend_url)
+        return None
+    return spotipy.Spotify(auth=token_info["access_token"])
 
-# Get current playing track for logged-in user
+
 @app.route("/listening")
 def listening():
-    spotify = get_spotify_client()
+    code = request.args.get("code")
+    spotify = get_spotify_client(code)
     if not spotify:
         return jsonify({"is_playing": False, "error": "Not authenticated"}), 401
     current_track = spotify.current_user_playing_track()
     if not current_track or not current_track.get("is_playing"):
         return jsonify({"is_playing": False})
+
     item = current_track["item"]
     track_name = item["name"]
     artists = ", ".join(artist["name"] for artist in item["artists"])
@@ -77,6 +55,7 @@ def listening():
     progress = datetime.utcfromtimestamp(progress_ms / 1000).strftime("%M:%S")
     duration = datetime.utcfromtimestamp(duration_ms / 1000).strftime("%M:%S")
     track_id = item["id"]
+
     return jsonify(
         {
             "is_playing": True,
@@ -95,7 +74,8 @@ def listening():
 # Endpoint to get Spotify user info (username, id)
 @app.route("/spotify_user")
 def spotify_user():
-    spotify = get_spotify_client()
+    code = request.args.get("code")
+    spotify = get_spotify_client(code)
     if not spotify:
         return jsonify({"error": "Not authenticated"}), 401
     user = spotify.current_user()
