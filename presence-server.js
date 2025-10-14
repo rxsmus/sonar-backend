@@ -9,6 +9,7 @@ app.get('/', (req, res) => {
 });
 
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
     origin: '*',
@@ -16,44 +17,31 @@ const io = new Server(server, {
   }
 });
 
-// onlineUsers: { socketId: { username, songId } }
-let onlineUsers = {};
-
-io.on('connection', (socket) => {
+// Dynamic namespaces for /lobby/:trackId
+io.of(/^\/lobby\/.+$/).on('connection', (socket) => {
+  const nsp = socket.nsp;
+  // Each namespace manages its own online users
+  if (!nsp.onlineUsers) nsp.onlineUsers = {};
   let username = null;
-  let songId = null;
+  let songId = nsp.name.split('/').pop();
 
-  // Expect join payload: { username, songId }
   socket.on('join', (payload) => {
     username = payload.username;
-    songId = payload.songId;
-    onlineUsers[socket.id] = { username, songId };
-    broadcastUsersForSong(songId);
-  });
-
-  socket.on('update-song', (newSongId) => {
-    if (onlineUsers[socket.id]) {
-      onlineUsers[socket.id].songId = newSongId;
-      songId = newSongId;
-      broadcastUsersForSong(songId);
-    }
+    nsp.onlineUsers[socket.id] = { username };
+    broadcastUsers(nsp);
   });
 
   socket.on('disconnect', () => {
-    delete onlineUsers[socket.id];
-    if (songId) broadcastUsersForSong(songId);
+    delete nsp.onlineUsers[socket.id];
+    broadcastUsers(nsp);
   });
 });
 
-function broadcastUsersForSong(songId) {
-  // Only users with the same songId
-  const users = Object.values(onlineUsers)
-    .filter(u => u.songId === songId)
-    .map(u => u.username);
-  // Send only to sockets with this songId
-  Object.entries(onlineUsers).forEach(([sid, u]) => {
-    if (u.songId === songId && io.sockets.sockets.get(sid)) {
-      io.sockets.sockets.get(sid).emit('online-users', users);
+function broadcastUsers(nsp) {
+  const users = Object.values(nsp.onlineUsers).map(u => u.username);
+  Object.keys(nsp.onlineUsers).forEach(sid => {
+    if (nsp.sockets.get(sid)) {
+      nsp.sockets.get(sid).emit('online-users', users);
     }
   });
 }
