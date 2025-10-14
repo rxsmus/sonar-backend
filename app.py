@@ -1,12 +1,8 @@
-
 from flask import Flask, jsonify, request, session, redirect
 from flask_cors import CORS
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from datetime import datetime
-
-
-
 
 
 app = Flask(__name__)
@@ -73,6 +69,22 @@ def listening():
         }
     )
 
+
+
+# Endpoint to get Spotify user info (username, id)
+@app.route("/spotify_user")
+def spotify_user():
+    code = request.args.get("code")
+    spotify = get_spotify_client(code)
+    if not spotify:
+        return jsonify({"error": "Not authenticated"}), 401
+    user = spotify.current_user()
+    return jsonify({
+        "id": user.get("id"),
+        "display_name": user.get("display_name"),
+        "images": user.get("images", []),
+        "email": user.get("email"),
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3112, debug=True)
