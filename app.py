@@ -70,7 +70,6 @@ def listening():
     )
 
 
-
 # Endpoint to get Spotify user info (username, id)
 @app.route("/spotify_user")
 def spotify_user():
@@ -79,12 +78,15 @@ def spotify_user():
     if not spotify:
         return jsonify({"error": "Not authenticated"}), 401
     user = spotify.current_user()
-    return jsonify({
-        "id": user.get("id"),
-        "display_name": user.get("display_name"),
-        "images": user.get("images", []),
-        "email": user.get("email"),
-    })
+    return jsonify(
+        {
+            "id": user.get("id"),
+            "display_name": user.get("display_name"),
+            "images": user.get("images", []),
+            "email": user.get("email"),
+        }
+    )
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3112, debug=True)
