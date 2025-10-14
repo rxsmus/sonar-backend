@@ -1,8 +1,36 @@
+
 from flask import Flask, jsonify, request, session, redirect
 from flask_cors import CORS
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from datetime import datetime
+
+app = Flask(__name__)
+app.secret_key = "spotcord_secret_key"  # Change this in production
+CORS(
+    app, supports_credentials=True
+)  # allow frontend (React) to make requests to backend
+
+
+CLIENT_ID = "51dd9a50cd994a7e8e374fc2169c6f25"
+CLIENT_SECRET = "9b0bbe25c87d457184ef9e12b5e876fd"
+SCOPE = "user-read-currently-playing user-read-playback-state"
+REDIRECT_URI = (
+    "https://spotcord-1.onrender.com/callback"  # Should match your Render URL
+)
+
+# Add the /spotify_user endpoint after app = Flask(__name__)
+@app.route("/spotify_user")
+def spotify_user():
+    code = request.args.get("code")
+    spotify = get_spotify_client(code)
+    if not spotify:
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        user = spotify.me()
+        return jsonify(user)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 app = Flask(__name__)
