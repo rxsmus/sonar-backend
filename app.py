@@ -7,27 +7,27 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = "spotcord_secret_key"  # Change this in production
-CORS(app, supports_credentials=True)  # allow frontend (React) to make requests to backend
+CORS(
+    app, supports_credentials=True
+)  # allow frontend (React) to make requests to backend
 
 
 CLIENT_ID = "51dd9a50cd994a7e8e374fc2169c6f25"
 CLIENT_SECRET = "9b0bbe25c87d457184ef9e12b5e876fd"
 SCOPE = "user-read-currently-playing user-read-playback-state"
-REDIRECT_URI = "https://spotcord-1.onrender.com/callback"  # Should match your Render URL
+REDIRECT_URI = (
+    "https://spotcord-1.onrender.com/callback"  # Should match your Render URL
+)
 
-def get_spotify_client():
-    code = session.get('spotify_code')
-    if not code:
-        code = request.args.get('code')
-        if code:
-            session['spotify_code'] = code
+
+def get_spotify_client(code):
     if not code:
         return None
     oauth = SpotifyOAuth(
         client_id=CLIENT_ID,
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
-        scope=SCOPE
+        scope=SCOPE,
     )
     token_info = oauth.get_access_token(code, as_dict=True)
     if not token_info or 'access_token' not in token_info:
@@ -37,11 +37,8 @@ def get_spotify_client():
 
 @app.route("/listening")
 def listening():
-    # Accept code from frontend (query param or cookie)
-    code = request.args.get('code') or request.cookies.get('spotify_code')
-    if code:
-        session['spotify_code'] = code
-    spotify = get_spotify_client()
+    code = request.args.get("code")
+    spotify = get_spotify_client(code)
     if not spotify:
         return jsonify({"is_playing": False, "error": "Not authenticated"}), 401
     current_track = spotify.current_user_playing_track()
@@ -69,6 +66,7 @@ def listening():
         "duration": duration,
         "track_id": track_id,
     })
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3112, debug=True)
