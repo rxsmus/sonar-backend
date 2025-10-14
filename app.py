@@ -1,23 +1,49 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, session, redirect
 from flask_cors import CORS
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from datetime import datetime
 
-app = Flask(__name__)
-CORS(app)  # allow frontend (React) to make requests to backend
 
-spotify = spotipy.Spotify(
-    auth_manager=SpotifyOAuth(
-        client_id="51dd9a50cd994a7e8e374fc2169c6f25",
-        client_secret="9b0bbe25c87d457184ef9e12b5e876fd",
-        redirect_uri="http://127.0.0.1:9090",
-        scope="user-read-currently-playing user-read-playback-state",
+app = Flask(__name__)
+app.secret_key = "spotcord_secret_key"  # Change this in production
+CORS(app, supports_credentials=True)  # allow frontend (React) to make requests to backend
+
+
+CLIENT_ID = "51dd9a50cd994a7e8e374fc2169c6f25"
+CLIENT_SECRET = "9b0bbe25c87d457184ef9e12b5e876fd"
+SCOPE = "user-read-currently-playing user-read-playback-state"
+REDIRECT_URI = "https://spotcord-1.onrender.com/callback"  # Should match your Render URL
+
+def get_spotify_client():
+    code = session.get('spotify_code')
+    if not code:
+        code = request.args.get('code')
+        if code:
+            session['spotify_code'] = code
+    if not code:
+        return None
+    oauth = SpotifyOAuth(
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        redirect_uri=REDIRECT_URI,
+        scope=SCOPE
     )
-)
+    token_info = oauth.get_access_token(code, as_dict=True)
+    if not token_info or 'access_token' not in token_info:
+        return None
+    return spotipy.Spotify(auth=token_info['access_token'])
+
 
 @app.route("/listening")
 def listening():
+    # Accept code from frontend (query param or cookie)
+    code = request.args.get('code') or request.cookies.get('spotify_code')
+    if code:
+        session['spotify_code'] = code
+    spotify = get_spotify_client()
+    if not spotify:
+        return jsonify({"is_playing": False, "error": "Not authenticated"}), 401
     current_track = spotify.current_user_playing_track()
     if not current_track or not current_track.get("is_playing"):
         return jsonify({"is_playing": False})
@@ -31,6 +57,7 @@ def listening():
     duration_ms = item["duration_ms"]
     progress = datetime.utcfromtimestamp(progress_ms / 1000).strftime("%M:%S")
     duration = datetime.utcfromtimestamp(duration_ms / 1000).strftime("%M:%S")
+    track_id = item["id"]
 
     return jsonify({
         "is_playing": True,
@@ -40,6 +67,7 @@ def listening():
         "album_image_url": album_image_url,
         "progress": progress,
         "duration": duration,
+        "track_id": track_id,
     })
 
 if __name__ == "__main__":
