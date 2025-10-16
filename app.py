@@ -35,10 +35,11 @@ REDIRECT_URI = (
 
 def get_spotify_client(code):
     print(f"[DEBUG] get_spotify_client called with code: {code}")
-    if not code:
+    # Reject missing, empty, or placeholder codes
+    if not code or code.strip() == "" or code == "YOUR_SPOTIFY_CODE":
+        print("[DEBUG] Invalid or placeholder code received.")
         return None
     try:
-        # Always stateless: no cache_path, no session, no global state
         oauth = SpotifyOAuth(
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
@@ -47,10 +48,28 @@ def get_spotify_client(code):
             cache_path=None,
         )
         token_info = oauth.get_access_token(code, as_dict=True)
-        if not token_info or "access_token" not in token_info:
+        # Validate token_info structure and token expiration
+        if (
+            not token_info
+            or "access_token" not in token_info
+            or not token_info["access_token"]
+            or ("expires_at" in token_info and token_info["expires_at"] < int(datetime.now().timestamp()))
+        ):
+            print(f"[DEBUG] No valid access token for code: {code}")
             return None
-        return spotipy.Spotify(auth=token_info["access_token"])
+        # Optionally, validate token by fetching user profile
+        try:
+            spotify = spotipy.Spotify(auth=token_info["access_token"])
+            user = spotify.current_user()
+            if not user or "id" not in user:
+                print(f"[DEBUG] Token did not yield a valid user for code: {code}")
+                return None
+            return spotify
+        except Exception as e:
+            print(f"[DEBUG] Exception validating token: {e}")
+            return None
     except Exception as e:
+        print(f"[DEBUG] Exception in get_spotify_client: {e}")
         return None
 
 
@@ -60,15 +79,8 @@ def listening():
     print(f"[DEBUG] /listening called with code: {code}")
     spotify = get_spotify_client(code)
     if spotify is None:
-        return (
-            jsonify(
-                {
-                    "is_playing": False,
-                    "error": "Not authenticated or code missing/expired",
-                }
-            ),
-            401,
-        )
+        print("[DEBUG] Invalid Spotify client. Returning 401.")
+        return jsonify({"is_playing": False, "error": "Not authenticated or code missing/expired"}), 401
     try:
         current_track = spotify.current_user_playing_track()
         if not current_track or not current_track.get("is_playing"):
@@ -109,6 +121,7 @@ def spotify_user():
     print(f"[DEBUG] /spotify_user called with code: {code}")
     spotify = get_spotify_client(code)
     if spotify is None:
+        print("[DEBUG] Invalid Spotify client for user info. Returning 401.")
         return jsonify({"error": "Not authenticated or code missing/expired"}), 401
     try:
         user = spotify.current_user()
