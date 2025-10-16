@@ -2,7 +2,8 @@ from flask import Flask, jsonify, request, redirect
 from flask_cors import CORS
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from spotipy.cache_handler import MemoryCacheHandler
+from spotipy.cache_handler import CacheHandler
+import threading
 from datetime import datetime
 
 
@@ -34,6 +35,23 @@ REDIRECT_URI = (
 )
 
 
+_session_token_cache = {}
+_session_token_cache_lock = threading.Lock()
+
+
+class SessionCacheHandler(CacheHandler):
+    def __init__(self, code):
+        self.code = code
+
+    def get_cached_token(self):
+        with _session_token_cache_lock:
+            return _session_token_cache.get(self.code)
+
+    def save_token_to_cache(self, token_info):
+        with _session_token_cache_lock:
+            _session_token_cache[self.code] = token_info
+
+
 def get_spotify_client(code):
     print(f"[DEBUG] get_spotify_client called with code: {code}")
     # Reject missing, empty, or placeholder codes
@@ -41,14 +59,17 @@ def get_spotify_client(code):
         print("[DEBUG] Invalid or placeholder code received.")
         return None
     try:
+        cache_handler = SessionCacheHandler(code)
         oauth = SpotifyOAuth(
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
             redirect_uri=REDIRECT_URI,
             scope=SCOPE,
-            cache_handler=MemoryCacheHandler(),
+            cache_handler=cache_handler,
         )
-        token_info = oauth.get_access_token(code, as_dict=True)
+        token_info = oauth.get_cached_token()
+        if not token_info:
+            token_info = oauth.get_access_token(code, as_dict=True)
         # Validate token_info structure and token expiration
         if (
             not token_info
@@ -102,10 +123,6 @@ def listening():
         artists = ", ".join(artist["name"] for artist in item["artists"])
         album_name = item["album"]["name"]
         album_image_url = item["album"]["images"][0]["url"]
-        progress_ms = current_track["progress_ms"]
-        duration_ms = item["duration_ms"]
-        progress = datetime.utcfromtimestamp(progress_ms / 1000).strftime("%M:%S")
-        duration = datetime.utcfromtimestamp(duration_ms / 1000).strftime("%M:%S")
         track_id = item["id"]
         return jsonify(
             {
@@ -114,8 +131,6 @@ def listening():
                 "artists": artists,
                 "album_name": album_name,
                 "album_image_url": album_image_url,
-                "progress": progress,
-                "duration": duration,
                 "track_id": track_id,
             }
         )
