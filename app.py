@@ -1,9 +1,3 @@
-# Redirect from /callback to frontend after Spotify auth
-@app.route("/callback")
-def callback():
-    # Optionally, you could process the code here if needed
-    frontend_url = "https://spotcord-frontend.vercel.app/"
-    return redirect(frontend_url)
 from flask import Flask, jsonify, request, session, redirect
 from flask_cors import CORS
 import spotipy
@@ -13,7 +7,11 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = "spotcord_secret_key"  # Change this in production
-CORS(app, supports_credentials=True)  # allow frontend (React) to make requests to backend
+CORS(
+    app, supports_credentials=True
+)  # allow frontend (React) to make requests to backend
+
+
 # Redirect from /callback to frontend after Spotify auth
 @app.route("/callback")
 def callback():
