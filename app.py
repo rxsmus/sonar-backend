@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request, redirect
 from flask_cors import CORS
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.cache_handler import MemoryCacheHandler
 from datetime import datetime
 
 
@@ -45,7 +46,7 @@ def get_spotify_client(code):
             client_secret=CLIENT_SECRET,
             redirect_uri=REDIRECT_URI,
             scope=SCOPE,
-            cache_path=None,
+            cache_handler=MemoryCacheHandler(),
         )
         token_info = oauth.get_access_token(code, as_dict=True)
         # Validate token_info structure and token expiration
@@ -53,7 +54,10 @@ def get_spotify_client(code):
             not token_info
             or "access_token" not in token_info
             or not token_info["access_token"]
-            or ("expires_at" in token_info and token_info["expires_at"] < int(datetime.now().timestamp()))
+            or (
+                "expires_at" in token_info
+                and token_info["expires_at"] < int(datetime.now().timestamp())
+            )
         ):
             print(f"[DEBUG] No valid access token for code: {code}")
             return None
@@ -80,7 +84,15 @@ def listening():
     spotify = get_spotify_client(code)
     if spotify is None:
         print("[DEBUG] Invalid Spotify client. Returning 401.")
-        return jsonify({"is_playing": False, "error": "Not authenticated or code missing/expired"}), 401
+        return (
+            jsonify(
+                {
+                    "is_playing": False,
+                    "error": "Not authenticated or code missing/expired",
+                }
+            ),
+            401,
+        )
     try:
         current_track = spotify.current_user_playing_track()
         if not current_track or not current_track.get("is_playing"):
