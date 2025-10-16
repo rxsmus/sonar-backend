@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, session, redirect
+from flask import Flask, jsonify, request, redirect
 from flask_cors import CORS
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
@@ -6,7 +6,6 @@ from datetime import datetime
 
 
 app = Flask(__name__)
-app.secret_key = "spotcord_secret_key"  # Change this in production
 CORS(
     app, supports_credentials=True
 )  # allow frontend (React) to make requests to backend
@@ -38,7 +37,7 @@ def get_spotify_client(code):
     if not code:
         return None
     try:
-        # Do NOT use cache_path or session, always stateless
+        # Always stateless: no cache_path, no session, no global state
         oauth = SpotifyOAuth(
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
@@ -46,13 +45,12 @@ def get_spotify_client(code):
             scope=SCOPE,
             cache_path=None,
         )
-        # Always get a new token for this code only
         token_info = oauth.get_access_token(code, as_dict=True)
         if not token_info or "access_token" not in token_info:
             return None
         return spotipy.Spotify(auth=token_info["access_token"])
     except Exception as e:
-        return str(e)
+        return None
 
 
 @app.route("/listening")
@@ -69,8 +67,6 @@ def listening():
             ),
             401,
         )
-    if isinstance(spotify, str):
-        return jsonify({"is_playing": False, "error": f"Spotify error: {spotify}"}), 400
     try:
         current_track = spotify.current_user_playing_track()
         if not current_track or not current_track.get("is_playing"):
@@ -111,19 +107,13 @@ def spotify_user():
     spotify = get_spotify_client(code)
     if spotify is None:
         return jsonify({"error": "Not authenticated or code missing/expired"}), 401
-    if isinstance(spotify, str):
-        return jsonify({"error": f"Spotify error: {spotify}"}), 400
     try:
         user = spotify.current_user()
-        # Only return email if scope is present (defensive, but email is not in SCOPE)
         user_info = {
             "id": user.get("id"),
             "display_name": user.get("display_name"),
             "images": user.get("images", []),
         }
-        # Defensive: only include email if present in user and in scope
-        if "email" in user and "user-read-email" in SCOPE:
-            user_info["email"] = user["email"]
         return jsonify(user_info)
     except Exception as e:
         return jsonify({"error": f"Spotify API error: {str(e)}"}), 400
