@@ -43,7 +43,15 @@ def listening():
     code = request.args.get("code")
     spotify = get_spotify_client(code)
     if spotify is None:
-        return jsonify({"is_playing": False, "error": "Not authenticated or code missing/expired"}), 401
+        return (
+            jsonify(
+                {
+                    "is_playing": False,
+                    "error": "Not authenticated or code missing/expired",
+                }
+            ),
+            401,
+        )
     if isinstance(spotify, str):
         return jsonify({"is_playing": False, "error": f"Spotify error: {spotify}"}), 400
     try:
@@ -73,7 +81,10 @@ def listening():
             }
         )
     except Exception as e:
-        return jsonify({"is_playing": False, "error": f"Spotify API error: {str(e)}"}), 400
+        return (
+            jsonify({"is_playing": False, "error": f"Spotify API error: {str(e)}"}),
+            400,
+        )
 
 
 # Endpoint to get Spotify user info (username, id)
