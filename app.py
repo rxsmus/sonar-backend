@@ -28,7 +28,7 @@ def callback():
 
 CLIENT_ID = "51dd9a50cd994a7e8e374fc2169c6f25"
 CLIENT_SECRET = "9b0bbe25c87d457184ef9e12b5e876fd"
-SCOPE = "user-read-currently-playing user-read-playback-state user-read-private user-read-email"
+SCOPE = "user-read-currently-playing user-read-playback-state user-read-private"
 REDIRECT_URI = (
     "https://spotcord-1.onrender.com/callback"  # Should match your Render URL
 )
