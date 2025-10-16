@@ -18,18 +18,22 @@ const io = new Server(server, {
 });
 
 
-// Dynamic namespaces for /lobby/:trackId
+
+// Dynamic namespaces for /lobby/:trackId or /lobby/:artist
 io.of(/^\/lobby\/.+$/).on('connection', (socket) => {
   const nsp = socket.nsp;
   // Each namespace manages its own online users and chat history
   if (!nsp.onlineUsers) nsp.onlineUsers = {};
   if (!nsp.chatHistory) nsp.chatHistory = [];
   let username = null;
-  let songId = nsp.name.split('/').pop();
+  let songId = null;
+  let artist = null;
 
   socket.on('join', (payload) => {
     username = payload.username;
-    nsp.onlineUsers[socket.id] = { username };
+    songId = payload.songId || null;
+    artist = payload.artist || null;
+    nsp.onlineUsers[socket.id] = { username, songId, artist };
     broadcastUsers(nsp);
     // Send chat history to the newly joined user
     socket.emit('chat-history', nsp.chatHistory);
