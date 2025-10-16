@@ -16,7 +16,9 @@ CORS(
 @app.route("/callback")
 def callback():
     # Optionally, you could process the code here if needed
-    frontend_url = "https://spotcord-frontend.vercel.app/"
+    # Redirect to frontend with code as query parameter
+    code = request.args.get("code")
+    frontend_url = f"https://spotcord-frontend.vercel.app/?code={code}" if code else "https://spotcord-frontend.vercel.app/"
     return redirect(frontend_url)
 
 
