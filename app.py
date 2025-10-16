@@ -23,51 +23,57 @@ REDIRECT_URI = (
 def get_spotify_client(code):
     if not code:
         return None
-    oauth = SpotifyOAuth(
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        redirect_uri=REDIRECT_URI,
-        scope=SCOPE,
-    )
-    token_info = oauth.get_access_token(code, as_dict=True)
-    if not token_info or "access_token" not in token_info:
-        return None
-    return spotipy.Spotify(auth=token_info["access_token"])
+    try:
+        oauth = SpotifyOAuth(
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
+            redirect_uri=REDIRECT_URI,
+            scope=SCOPE,
+        )
+        token_info = oauth.get_access_token(code, as_dict=True)
+        if not token_info or "access_token" not in token_info:
+            return None
+        return spotipy.Spotify(auth=token_info["access_token"])
+    except Exception as e:
+        return str(e)
 
 
 @app.route("/listening")
 def listening():
     code = request.args.get("code")
     spotify = get_spotify_client(code)
-    if not spotify:
-        return jsonify({"is_playing": False, "error": "Not authenticated"}), 401
-    current_track = spotify.current_user_playing_track()
-    if not current_track or not current_track.get("is_playing"):
-        return jsonify({"is_playing": False})
-
-    item = current_track["item"]
-    track_name = item["name"]
-    artists = ", ".join(artist["name"] for artist in item["artists"])
-    album_name = item["album"]["name"]
-    album_image_url = item["album"]["images"][0]["url"]
-    progress_ms = current_track["progress_ms"]
-    duration_ms = item["duration_ms"]
-    progress = datetime.utcfromtimestamp(progress_ms / 1000).strftime("%M:%S")
-    duration = datetime.utcfromtimestamp(duration_ms / 1000).strftime("%M:%S")
-    track_id = item["id"]
-
-    return jsonify(
-        {
-            "is_playing": True,
-            "track_name": track_name,
-            "artists": artists,
-            "album_name": album_name,
-            "album_image_url": album_image_url,
-            "progress": progress,
-            "duration": duration,
-            "track_id": track_id,
-        }
-    )
+    if spotify is None:
+        return jsonify({"is_playing": False, "error": "Not authenticated or code missing/expired"}), 401
+    if isinstance(spotify, str):
+        return jsonify({"is_playing": False, "error": f"Spotify error: {spotify}"}), 400
+    try:
+        current_track = spotify.current_user_playing_track()
+        if not current_track or not current_track.get("is_playing"):
+            return jsonify({"is_playing": False})
+        item = current_track["item"]
+        track_name = item["name"]
+        artists = ", ".join(artist["name"] for artist in item["artists"])
+        album_name = item["album"]["name"]
+        album_image_url = item["album"]["images"][0]["url"]
+        progress_ms = current_track["progress_ms"]
+        duration_ms = item["duration_ms"]
+        progress = datetime.utcfromtimestamp(progress_ms / 1000).strftime("%M:%S")
+        duration = datetime.utcfromtimestamp(duration_ms / 1000).strftime("%M:%S")
+        track_id = item["id"]
+        return jsonify(
+            {
+                "is_playing": True,
+                "track_name": track_name,
+                "artists": artists,
+                "album_name": album_name,
+                "album_image_url": album_image_url,
+                "progress": progress,
+                "duration": duration,
+                "track_id": track_id,
+            }
+        )
+    except Exception as e:
+        return jsonify({"is_playing": False, "error": f"Spotify API error: {str(e)}"}), 400
 
 
 # Endpoint to get Spotify user info (username, id)
@@ -75,17 +81,22 @@ def listening():
 def spotify_user():
     code = request.args.get("code")
     spotify = get_spotify_client(code)
-    if not spotify:
-        return jsonify({"error": "Not authenticated"}), 401
-    user = spotify.current_user()
-    return jsonify(
-        {
-            "id": user.get("id"),
-            "display_name": user.get("display_name"),
-            "images": user.get("images", []),
-            "email": user.get("email"),
-        }
-    )
+    if spotify is None:
+        return jsonify({"error": "Not authenticated or code missing/expired"}), 401
+    if isinstance(spotify, str):
+        return jsonify({"error": f"Spotify error: {spotify}"}), 400
+    try:
+        user = spotify.current_user()
+        return jsonify(
+            {
+                "id": user.get("id"),
+                "display_name": user.get("display_name"),
+                "images": user.get("images", []),
+                "email": user.get("email"),
+            }
+        )
+    except Exception as e:
+        return jsonify({"error": f"Spotify API error: {str(e)}"}), 400
 
 
 if __name__ == "__main__":
