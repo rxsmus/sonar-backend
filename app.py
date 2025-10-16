@@ -38,12 +38,15 @@ def get_spotify_client(code):
     if not code:
         return None
     try:
+        # Do NOT use cache_path or session, always stateless
         oauth = SpotifyOAuth(
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
             redirect_uri=REDIRECT_URI,
             scope=SCOPE,
+            cache_path=None,
         )
+        # Always get a new token for this code only
         token_info = oauth.get_access_token(code, as_dict=True)
         if not token_info or "access_token" not in token_info:
             return None
@@ -112,14 +115,16 @@ def spotify_user():
         return jsonify({"error": f"Spotify error: {spotify}"}), 400
     try:
         user = spotify.current_user()
-        return jsonify(
-            {
-                "id": user.get("id"),
-                "display_name": user.get("display_name"),
-                "images": user.get("images", []),
-                "email": user.get("email"),
-            }
-        )
+        # Only return email if scope is present (defensive, but email is not in SCOPE)
+        user_info = {
+            "id": user.get("id"),
+            "display_name": user.get("display_name"),
+            "images": user.get("images", []),
+        }
+        # Defensive: only include email if present in user and in scope
+        if "email" in user and "user-read-email" in SCOPE:
+            user_info["email"] = user["email"]
+        return jsonify(user_info)
     except Exception as e:
         return jsonify({"error": f"Spotify API error: {str(e)}"}), 400
 
