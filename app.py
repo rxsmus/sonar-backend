@@ -34,6 +34,7 @@ REDIRECT_URI = (
 
 
 def get_spotify_client(code):
+    print(f"[DEBUG] get_spotify_client called with code: {code}")
     if not code:
         return None
     try:
@@ -56,6 +57,7 @@ def get_spotify_client(code):
 @app.route("/listening")
 def listening():
     code = request.args.get("code")
+    print(f"[DEBUG] /listening called with code: {code}")
     spotify = get_spotify_client(code)
     if spotify is None:
         return (
@@ -104,11 +106,15 @@ def listening():
 @app.route("/spotify_user")
 def spotify_user():
     code = request.args.get("code")
+    print(f"[DEBUG] /spotify_user called with code: {code}")
     spotify = get_spotify_client(code)
     if spotify is None:
         return jsonify({"error": "Not authenticated or code missing/expired"}), 401
     try:
         user = spotify.current_user()
+        print(
+            f"[DEBUG] Spotify user id: {user.get('id')}, display_name: {user.get('display_name')}"
+        )
         user_info = {
             "id": user.get("id"),
             "display_name": user.get("display_name"),
