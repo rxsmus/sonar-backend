@@ -29,7 +29,7 @@ def callback():
 
 CLIENT_ID = "51dd9a50cd994a7e8e374fc2169c6f25"
 CLIENT_SECRET = "9b0bbe25c87d457184ef9e12b5e876fd"
-SCOPE = "user-read-currently-playing user-read-playback-state user-read-private"
+SCOPE = "streaming user-read-currently-playing user-read-playback-state user-modify-playback-state user-read-private"
 REDIRECT_URI = (
     "https://spotcord-1.onrender.com/callback"  # Should match your Render URL
 )
@@ -70,15 +70,33 @@ def get_spotify_client(code):
         token_info = oauth.get_cached_token()
         if not token_info:
             token_info = oauth.get_access_token(code, as_dict=True)
+
+        # If token exists but expired, attempt to refresh using the refresh_token
+        if (
+            token_info
+            and "expires_at" in token_info
+            and token_info["expires_at"] < int(datetime.now().timestamp())
+        ):
+            print(f"[DEBUG] Access token expired for code: {code}, attempting refresh")
+            try:
+                refresh_token = token_info.get("refresh_token")
+                if refresh_token:
+                    new_token_info = oauth.refresh_access_token(refresh_token)
+                    # Ensure the cache is updated
+                    cache_handler.save_token_to_cache(new_token_info)
+                    token_info = new_token_info
+                else:
+                    print("[DEBUG] No refresh token available; cannot refresh")
+                    return None
+            except Exception as e:
+                print(f"[DEBUG] Exception refreshing token: {e}")
+                return None
+
         # Validate token_info structure and token expiration
         if (
             not token_info
             or "access_token" not in token_info
             or not token_info["access_token"]
-            or (
-                "expires_at" in token_info
-                and token_info["expires_at"] < int(datetime.now().timestamp())
-            )
         ):
             print(f"[DEBUG] No valid access token for code: {code}")
             return None
@@ -163,6 +181,53 @@ def spotify_user():
         return jsonify(user_info)
     except Exception as e:
         return jsonify({"error": f"Spotify API error: {str(e)}"}), 400
+
+
+@app.route("/refresh")
+def refresh_token():
+    """Return a fresh access token for the given code if possible.
+    Frontend should call this to get a short-lived access token for the Web Playback SDK.
+    """
+    code = request.args.get("code")
+    print(f"[DEBUG] /refresh called with code: {code}")
+    if not code:
+        return jsonify({"error": "code missing"}), 400
+    try:
+        cache_handler = SessionCacheHandler(code)
+        oauth = SpotifyOAuth(
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
+            redirect_uri=REDIRECT_URI,
+            scope=SCOPE,
+            cache_handler=cache_handler,
+        )
+        token_info = oauth.get_cached_token()
+        if not token_info:
+            return jsonify({"error": "No token cached for this code"}), 401
+        # Refresh if expired
+        if "expires_at" in token_info and token_info["expires_at"] < int(
+            datetime.now().timestamp()
+        ):
+            refresh_token = token_info.get("refresh_token")
+            if not refresh_token:
+                return jsonify({"error": "No refresh token available"}), 401
+            try:
+                new_token_info = oauth.refresh_access_token(refresh_token)
+                cache_handler.save_token_to_cache(new_token_info)
+                token_info = new_token_info
+            except Exception as e:
+                print(f"[DEBUG] Error refreshing token in /refresh: {e}")
+                return jsonify({"error": f"Refresh failed: {str(e)}"}), 400
+
+        return jsonify(
+            {
+                "access_token": token_info.get("access_token"),
+                "expires_at": token_info.get("expires_at"),
+            }
+        )
+    except Exception as e:
+        print(f"[DEBUG] Exception in /refresh: {e}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 
 if __name__ == "__main__":
