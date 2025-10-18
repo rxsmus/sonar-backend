@@ -19,6 +19,24 @@ def callback():
     # Optionally, you could process the code here if needed
     # Redirect to frontend with code as query parameter
     code = request.args.get("code")
+    # If we have a code, exchange it here and cache token server-side so
+    # subsequent /refresh calls can return an access token for the SDK.
+    if code:
+        try:
+            cache_handler = SessionCacheHandler(code)
+            oauth = SpotifyOAuth(
+                client_id=CLIENT_ID,
+                client_secret=CLIENT_SECRET,
+                redirect_uri=REDIRECT_URI,
+                scope=SCOPE,
+                cache_handler=cache_handler,
+            )
+            # Exchange code for token and let SpotifyOAuth save to our cache handler
+            token_info = oauth.get_access_token(code, as_dict=True)
+            print(f"[DEBUG] Exchanged code and cached token for code: {code}")
+        except Exception as e:
+            print(f"[DEBUG] Error exchanging code in callback: {e}")
+
     frontend_url = (
         f"https://spotcord-frontend.vercel.app/?code={code}"
         if code
