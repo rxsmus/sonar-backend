@@ -8,9 +8,16 @@ from datetime import datetime
 
 
 app = Flask(__name__)
-CORS(
-    app, supports_credentials=True
-)  # allow frontend (React) to make requests to backend
+# Allow specific origins (frontend and socket server). In production, set this
+# to your exact frontend host. We allow both the Vercel frontend and the
+# onrender socket host used by the project.
+allowed_origins = [
+    "https://spotcord-frontend.vercel.app",
+    "https://spotcord.onrender.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+CORS(app, origins=allowed_origins, supports_credentials=True)
 
 
 # Redirect from /callback to frontend after Spotify auth
