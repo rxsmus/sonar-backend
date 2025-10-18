@@ -41,6 +41,10 @@ def callback():
             # Exchange code for token and let SpotifyOAuth save to our cache handler
             token_info = oauth.get_access_token(code, as_dict=True)
             print(f"[DEBUG] Exchanged code and cached token for code: {code}")
+            try:
+                print(f"[DEBUG] token_info scopes: {token_info.get('scope')}")
+            except Exception:
+                pass
         except Exception as e:
             print(f"[DEBUG] Error exchanging code in callback: {e}")
 
@@ -95,6 +99,12 @@ def get_spotify_client(code):
         token_info = oauth.get_cached_token()
         if not token_info:
             token_info = oauth.get_access_token(code, as_dict=True)
+        try:
+            print(
+                f"[DEBUG] token_info scopes (get_spotify_client): {token_info.get('scope')}"
+            )
+        except Exception:
+            pass
 
         # If token exists but expired, attempt to refresh using the refresh_token
         if (
@@ -248,6 +258,7 @@ def refresh_token():
             {
                 "access_token": token_info.get("access_token"),
                 "expires_at": token_info.get("expires_at"),
+                "scope": token_info.get("scope"),
             }
         )
     except Exception as e:
