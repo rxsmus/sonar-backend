@@ -5,6 +5,8 @@ from spotipy.oauth2 import SpotifyOAuth
 from spotipy.cache_handler import CacheHandler
 import threading
 from datetime import datetime
+import os
+import requests
 
 
 app = Flask(__name__)
@@ -63,6 +65,21 @@ REDIRECT_URI = (
     "https://spotcord-1.onrender.com/callback"  # Should match your Render URL
 )
 
+# SoundCloud config - set these in environment for production
+SOUNDCLOUD_CLIENT_ID = os.environ.get(
+    "SOUNDCLOUD_CLIENT_ID", "YOUR_SOUNDCLOUD_CLIENT_ID"
+)
+SOUNDCLOUD_CLIENT_SECRET = os.environ.get(
+    "SOUNDCLOUD_CLIENT_SECRET", "YOUR_SOUNDCLOUD_CLIENT_SECRET"
+)
+SOUNDCLOUD_REDIRECT_URI = os.environ.get(
+    "SOUNDCLOUD_REDIRECT_URI", "https://spotcord-1.onrender.com/sc_callback"
+)
+
+# SoundCloud token cache (simple in-memory cache keyed by code)
+_sc_session_token_cache = {}
+_sc_session_token_cache_lock = threading.Lock()
+
 
 _session_token_cache = {}
 _session_token_cache_lock = threading.Lock()
@@ -79,6 +96,19 @@ class SessionCacheHandler(CacheHandler):
     def save_token_to_cache(self, token_info):
         with _session_token_cache_lock:
             _session_token_cache[self.code] = token_info
+
+
+class SCSessionCache:
+    def __init__(self, code):
+        self.code = code
+
+    def get_cached_token(self):
+        with _sc_session_token_cache_lock:
+            return _sc_session_token_cache.get(self.code)
+
+    def save_token_to_cache(self, token_info):
+        with _sc_session_token_cache_lock:
+            _sc_session_token_cache[self.code] = token_info
 
 
 def get_spotify_client(code):
@@ -149,6 +179,99 @@ def get_spotify_client(code):
     except Exception as e:
         print(f"[DEBUG] Exception in get_spotify_client: {e}")
         return None
+
+
+@app.route("/sc_callback")
+def sc_callback():
+    # SoundCloud OAuth callback: exchange code for token and cache it
+    code = request.args.get("code")
+    if not code:
+        return redirect("https://spotcord-frontend.vercel.app/")
+    try:
+        token_url = "https://api.soundcloud.com/oauth2/token"
+        data = {
+            "client_id": SOUNDCLOUD_CLIENT_ID,
+            "client_secret": SOUNDCLOUD_CLIENT_SECRET,
+            "grant_type": "authorization_code",
+            "redirect_uri": SOUNDCLOUD_REDIRECT_URI,
+            "code": code,
+        }
+        resp = requests.post(token_url, data=data, timeout=10)
+        if resp.status_code != 200:
+            print(
+                f"[DEBUG] SoundCloud token exchange failed: {resp.status_code} {resp.text}"
+            )
+        token_info = resp.json()
+        # Normalize token_info and store expires_at
+        try:
+            expires_in = int(token_info.get("expires_in", 0))
+            token_info["expires_at"] = int(datetime.now().timestamp()) + expires_in
+        except Exception:
+            pass
+        # Cache by code
+        sc_cache = SCSessionCache(code)
+        sc_cache.save_token_to_cache(token_info)
+        frontend_url = f"https://spotcord-frontend.vercel.app/?sc_code={code}"
+        return redirect(frontend_url)
+    except Exception as e:
+        print(f"[DEBUG] Exception in sc_callback: {e}")
+        return redirect("https://spotcord-frontend.vercel.app/")
+
+
+@app.route("/sc_refresh")
+def sc_refresh():
+    # Return cached SoundCloud access token for given code (or attempt refresh)
+    code = request.args.get("code")
+    print(f"[DEBUG] /sc_refresh called with code: {code}")
+    if not code:
+        return jsonify({"error": "code missing"}), 400
+    try:
+        cache = SCSessionCache(code)
+        token_info = cache.get_cached_token()
+        if not token_info:
+            return jsonify({"error": "No token cached for this code"}), 401
+        # Refresh if expired and refresh_token present
+        if "expires_at" in token_info and token_info["expires_at"] < int(
+            datetime.now().timestamp()
+        ):
+            refresh_token = token_info.get("refresh_token")
+            if not refresh_token:
+                return jsonify({"error": "No refresh token available"}), 401
+            try:
+                token_url = "https://api.soundcloud.com/oauth2/token"
+                data = {
+                    "client_id": SOUNDCLOUD_CLIENT_ID,
+                    "client_secret": SOUNDCLOUD_CLIENT_SECRET,
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                }
+                resp = requests.post(token_url, data=data, timeout=10)
+                if resp.status_code != 200:
+                    print(f"[DEBUG] SC refresh failed: {resp.status_code} {resp.text}")
+                    return jsonify({"error": "Refresh failed"}), 400
+                new_token_info = resp.json()
+                try:
+                    expires_in = int(new_token_info.get("expires_in", 0))
+                    new_token_info["expires_at"] = (
+                        int(datetime.now().timestamp()) + expires_in
+                    )
+                except Exception:
+                    pass
+                cache.save_token_to_cache(new_token_info)
+                token_info = new_token_info
+            except Exception as e:
+                print(f"[DEBUG] Exception refreshing SC token: {e}")
+                return jsonify({"error": f"Refresh failed: {str(e)}"}), 400
+        return jsonify(
+            {
+                "access_token": token_info.get("access_token"),
+                "expires_at": token_info.get("expires_at"),
+                "scope": token_info.get("scope", ""),
+            }
+        )
+    except Exception as e:
+        print(f"[DEBUG] Exception in /sc_refresh: {e}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 
 @app.route("/listening")
