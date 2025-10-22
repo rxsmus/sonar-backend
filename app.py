@@ -28,8 +28,39 @@ def callback():
     # Optionally, you could process the code here if needed
     # Redirect to frontend with code as query parameter
     code = request.args.get("code")
-    # If we have a code, exchange it here and cache token server-side so
-    # subsequent /refresh calls can return an access token for the SDK.
+    state = request.args.get("state")
+
+    # If SoundCloud flow (we set state=sc when initiating auth), exchange with SoundCloud
+    if code and state == "sc":
+        try:
+            token_url = "https://api.soundcloud.com/oauth2/token"
+            data = {
+                "client_id": SOUNDCLOUD_CLIENT_ID,
+                "client_secret": SOUNDCLOUD_CLIENT_SECRET,
+                "grant_type": "authorization_code",
+                "redirect_uri": SOUNDCLOUD_REDIRECT_URI,
+                "code": code,
+            }
+            resp = requests.post(token_url, data=data, timeout=10)
+            if resp.status_code != 200:
+                print(
+                    f"[DEBUG] SoundCloud token exchange failed: {resp.status_code} {resp.text}"
+                )
+            token_info = resp.json()
+            try:
+                expires_in = int(token_info.get("expires_in", 0))
+                token_info["expires_at"] = int(datetime.now().timestamp()) + expires_in
+            except Exception:
+                pass
+            sc_cache = SCSessionCache(code)
+            sc_cache.save_token_to_cache(token_info)
+            frontend_url = f"https://spotcord-frontend.vercel.app/?sc_code={code}"
+            return redirect(frontend_url)
+        except Exception as e:
+            print(f"[DEBUG] Exception in SoundCloud exchange in callback: {e}")
+            return redirect("https://spotcord-frontend.vercel.app/")
+
+    # Default: Spotify flow
     if code:
         try:
             cache_handler = SessionCacheHandler(code)
