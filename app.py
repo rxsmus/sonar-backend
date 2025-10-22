@@ -66,15 +66,9 @@ REDIRECT_URI = (
 )
 
 # SoundCloud config - set these in environment for production
-SOUNDCLOUD_CLIENT_ID = os.environ.get(
-    "SOUNDCLOUD_CLIENT_ID", "YOUR_SOUNDCLOUD_CLIENT_ID"
-)
-SOUNDCLOUD_CLIENT_SECRET = os.environ.get(
-    "SOUNDCLOUD_CLIENT_SECRET", "YOUR_SOUNDCLOUD_CLIENT_SECRET"
-)
-SOUNDCLOUD_REDIRECT_URI = os.environ.get(
-    "SOUNDCLOUD_REDIRECT_URI", "https://spotcord-1.onrender.com/sc_callback"
-)
+SOUNDCLOUD_CLIENT_ID = "rKvVUO0beLONnMPQZFodTSDluZBs3TJc"
+SOUNDCLOUD_CLIENT_SECRET = "WoMG2CtcmMacRag48HHnl22UoDVBKZCQ"
+SOUNDCLOUD_REDIRECT_URI = "https://spotcord-1.onrender.com/callback"
 
 # SoundCloud token cache (simple in-memory cache keyed by code)
 _sc_session_token_cache = {}
@@ -240,8 +234,8 @@ def sc_refresh():
             try:
                 token_url = "https://api.soundcloud.com/oauth2/token"
                 data = {
-                    "client_id": "rKvVUO0beLONnMPQZFodTSDluZBs3TJc",
-                    "client_secret": "WoMG2CtcmMacRag48HHnl22UoDVBKZCQ",
+                    "client_id": SOUNDCLOUD_CLIENT_ID,
+                    "client_secret": SOUNDCLOUD_CLIENT_SECRET,
                     "grant_type": "refresh_token",
                     "refresh_token": refresh_token,
                 }
