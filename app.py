@@ -240,8 +240,8 @@ def sc_refresh():
             try:
                 token_url = "https://api.soundcloud.com/oauth2/token"
                 data = {
-                    "client_id": SOUNDCLOUD_CLIENT_ID,
-                    "client_secret": SOUNDCLOUD_CLIENT_SECRET,
+                    "client_id": "rKvVUO0beLONnMPQZFodTSDluZBs3TJc",
+                    "client_secret": "WoMG2CtcmMacRag48HHnl22UoDVBKZCQ",
                     "grant_type": "refresh_token",
                     "refresh_token": refresh_token,
                 }
