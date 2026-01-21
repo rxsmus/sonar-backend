@@ -10,17 +10,17 @@ import requests
 
 
 app = Flask(__name__)
-# Allow specific origins (frontend and socket server). In production, set this
-# to your exact frontend host. We allow both the Vercel frontend and the
-# onrender socket host used by the project.
-allowed_origins = [
-    "https://spotcord-frontend.vercel.app",
-    "https://spotcord.onrender.com",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
-CORS(app, origins=allowed_origins, supports_credentials=True)
 
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+SPOTIFY_SCOPE = os.getenv("SPOTIFY_SCOPE")
+SPOTIFY_REDIRECT_URL = os.getenv("SPOTIFY_REDIRECT_URL")
+SOUNDCLOUD_CLIENT_ID = os.getenv("SOUNDCLOUD_CLIENT_ID")
+SOUNDCLOUD_CLIENT_SECRET = os.getenv("SOUNDCLOUD_CLIENT_SECRET")
+SOUNDCLOUD_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URL")
+
+CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
 
 # Redirect from /callback to frontend after Spotify auth
 @app.route("/callback")
@@ -65,10 +65,10 @@ def callback():
         try:
             cache_handler = SessionCacheHandler(code)
             oauth = SpotifyOAuth(
-                client_id=CLIENT_ID,
-                client_secret=CLIENT_SECRET,
-                redirect_uri=REDIRECT_URI,
-                scope=SCOPE,
+                client_id=SPOTIFY_CLIENT_ID,
+                client_secret=SPOTIFY_CLIENT_SECRET,
+                redirect_uri=SPOTIFY_REDIRECT_URL,
+                scope=SPOTIFY_SCOPE,
                 cache_handler=cache_handler,
             )
             # Exchange code for token and let SpotifyOAuth save to our cache handler
@@ -88,24 +88,8 @@ def callback():
     )
     return redirect(frontend_url)
 
-
-CLIENT_ID = "51dd9a50cd994a7e8e374fc2169c6f25"
-CLIENT_SECRET = "9b0bbe25c87d457184ef9e12b5e876fd"
-SCOPE = "streaming user-read-currently-playing user-read-playback-state user-modify-playback-state user-read-private user-read-email"
-REDIRECT_URI = (
-    "https://spotcord-1.onrender.com/callback"  # Should match your Render URL
-)
-
-# SoundCloud config - set these in environment for production
-SOUNDCLOUD_CLIENT_ID = "rKvVUO0beLONnMPQZFodTSDluZBs3TJc"
-SOUNDCLOUD_CLIENT_SECRET = "WoMG2CtcmMacRag48HHnl22UoDVBKZCQ"
-SOUNDCLOUD_REDIRECT_URI = "https://spotcord-1.onrender.com/callback"
-
-# SoundCloud token cache (simple in-memory cache keyed by code)
 _sc_session_token_cache = {}
 _sc_session_token_cache_lock = threading.Lock()
-
-
 _session_token_cache = {}
 _session_token_cache_lock = threading.Lock()
 
@@ -145,10 +129,10 @@ def get_spotify_client(code):
     try:
         cache_handler = SessionCacheHandler(code)
         oauth = SpotifyOAuth(
-            client_id=CLIENT_ID,
-            client_secret=CLIENT_SECRET,
-            redirect_uri=REDIRECT_URI,
-            scope=SCOPE,
+            client_id=SPOTIFY_CLIENT_ID,
+            client_secret=SPOTIFY_CLIENT_SECRET,
+            redirect_uri=SPOTIFY_REDIRECT_URL,
+            scope=SPOTIFY_SCOPE,
             cache_handler=cache_handler,
         )
         token_info = oauth.get_cached_token()
@@ -378,10 +362,10 @@ def refresh_token():
     try:
         cache_handler = SessionCacheHandler(code)
         oauth = SpotifyOAuth(
-            client_id=CLIENT_ID,
-            client_secret=CLIENT_SECRET,
-            redirect_uri=REDIRECT_URI,
-            scope=SCOPE,
+            client_id=SPOTIFY_CLIENT_ID,
+            client_secret=SPOTIFY_CLIENT_SECRET,
+            redirect_uri=SPOTIFY_REDIRECT_URL,
+            scope=SPOTIFY_SCOPE,
             cache_handler=cache_handler,
         )
         token_info = oauth.get_cached_token()
